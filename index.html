@@ -482,7 +482,8 @@
         // =======================================================
         // 🚨 중요: 선생님 대시보드에서 복사해 온 값으로 덮어쓰세요!
         // =======================================================
-        window.TEACHER_APP_ID = "demo-math-class"; 
+        window.TEACHER_APP_ID = "c_b6edf63437bbade9_teacher_dashboard.html-781"; 
+        window.MISSION_COLLECTION = "class_activity"; 
         window.firebaseConfig = {
             apiKey: "AIzaSyDummyKeyForPreviewPurposesOnly123",
             projectId: "demo-math-class",
@@ -542,7 +543,8 @@
             // 첫 입장 상태 서버로 전송 (데모 모드가 아닐 때만)
             if (!isDemoMode && db) {
                 try {
-                    const ref = doc(db, 'artifacts', window.TEACHER_APP_ID, 'public', 'data', 'class_activity', window.myStudentId);
+                    const missionId = window.MISSION_COLLECTION || 'class_activity';
+                    const ref = doc(db, 'artifacts', window.TEACHER_APP_ID, 'public', 'data', missionId, window.myStudentId);
                     await setDoc(ref, {
                         classNum: classNum,
                         name: window.myStudentName,
@@ -559,7 +561,8 @@
         window.syncProgressToServer = async function(statusText, answerText = '') {
             if(!window.myStudentId || isDemoMode || !db) return;
             try {
-                const ref = doc(db, 'artifacts', window.TEACHER_APP_ID, 'public', 'data', 'class_activity', window.myStudentId);
+                const missionId = window.MISSION_COLLECTION || 'class_activity';
+                const ref = doc(db, 'artifacts', window.TEACHER_APP_ID, 'public', 'data', missionId, window.myStudentId);
                 await setDoc(ref, {
                     status: statusText,
                     currentAnswer: answerText,
