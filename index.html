@@ -500,33 +500,42 @@
        학생이 반/이름을 입력하고 '시작' 버튼을 눌렀을 때 실행되는 함수 안쪽입니다.
        ======================================================= */
     window.enterClass = async function() {
-        const sClass = document.getElementById('student-class').value;
-        const sName = document.getElementById('student-name').value;
-        
-        // 학생 고유 ID 생성 (예: 3반_홍길동_1234)
-        studentId = `${sClass}반_${sName}_${Date.now().toString().slice(-4)}`;
+    const sClass = document.getElementById('student-class').value;
+    const sName = document.getElementById('student-name').value;
+    
+    // 1. 입력 확인
+    if(!sClass || !sName) {
+        window.showToast("반과 이름을 모두 입력해주세요!");
+        return;
+    }
 
+    // 🌟 [핵심 수정 포인트] DB 연결을 기다리지 않고 화면부터 즉시 넘깁니다!
+    document.getElementById('login-view').classList.add('hidden');
+    document.getElementById('app-view').classList.remove('hidden');
+    window.updateUI();
+
+    // 2. 뒤에서 조용히 DB 고유 ID 생성 및 초기 데이터 저장 진행
+    studentId = `${sClass}반_${sName}_${Date.now().toString().slice(-4)}`;
+
+    if(auth && db) {
         try {
-            // 2-1. 반드시 먼저 익명 로그인을 수행해야 쓰기 권한이 생깁니다.
-            await signInAnonymously(auth);
+            const initialToken = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
+            if (initialToken) await signInWithCustomToken(auth, initialToken);
+            else await signInAnonymously(auth);
 
-            // 2-2. 교사 대시보드와 완벽히 동일한 DB 경로 지정
             const docRef = doc(db, 'artifacts', window.TEACHER_APP_ID, 'public', 'data', window.MISSION_COLLECTION, studentId);
-            
-            // 2-3. 초기 데이터 저장
             await setDoc(docRef, {
                 class: sClass,
                 name: sName,
                 progress: 0,
                 lastActive: new Date().toLocaleTimeString('ko-KR', {hour: '2-digit', minute:'2-digit'})
             });
-            
-            // ... 이후 화면을 넘기는 기존 코드 실행 ...
-            
         } catch(e) {
-            console.error("데이터 저장 실패:", e);
+            console.error("DB 저장 에러:", e);
         }
     }
+}
+
 
 
     /* =======================================================
