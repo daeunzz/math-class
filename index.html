@@ -148,7 +148,6 @@
             transform: translate(-50%, -50%) scale(1.1);
         }
         
-        /* 배터리 모양 */
         .battery-icon {
             width: 24px;
             height: 40px;
@@ -174,10 +173,9 @@
         .battery-fill {
             width: 100%;
             height: 60%;
-            background-color: #22c55e; /* 녹색 */
+            background-color: #22c55e;
         }
         
-        /* 점(마커) 모양 */
         .dot-marker {
             width: 28px;
             height: 28px;
@@ -190,7 +188,32 @@
 </head>
 <body class="bg-indigo-50 min-h-screen flex items-center justify-center p-4">
 
-    <main class="bg-white rounded-3xl shadow-xl w-full max-w-2xl p-6 md:p-8 overflow-hidden border border-indigo-100">
+    <!-- 토스트 알림창 -->
+    <div id="toast" class="fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none z-50">
+        알림 메시지
+    </div>
+
+    <!-- 1. 학생 로그인 화면 -->
+    <div id="login-view" class="bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center transform transition-all">
+        <span class="text-5xl block mb-4">🚀</span>
+        <h1 class="text-2xl font-bold text-gray-800 mb-2">일차함수 복습 미션</h1>
+        <p class="text-gray-500 mb-8">반과 이름을 정확하게 입력해주세요!</p>
+        
+        <div class="space-y-4">
+            <div>
+                <input type="number" id="student-class" placeholder="몇 반인가요? (예: 3)" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-lg">
+            </div>
+            <div>
+                <input type="text" id="student-name" placeholder="이름이 무엇인가요?" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-lg">
+            </div>
+            <button onclick="enterClass()" class="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md mt-4 text-lg active:scale-95">
+                입장하기
+            </button>
+        </div>
+    </div>
+
+    <!-- 2. 메인 학습 화면 (초기엔 숨김) -->
+    <main id="app-view" class="hidden bg-white rounded-3xl shadow-xl w-full max-w-2xl p-6 md:p-8 overflow-hidden border border-indigo-100 relative">
         
         <div class="mb-6">
             <div class="flex justify-between items-center mb-4">
@@ -444,10 +467,111 @@
         </div>
         
         <div id="final-msg" class="hidden mt-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl text-center font-bold">
-            🎉 모든 활동을 완료했습니다! 대단해요!
+            🎉 모든 활동을 완료했습니다! 대단해요! 선생님 화면을 확인해 보세요.
         </div>
     </main>
 
+    <!-- ========================================================= -->
+    <!-- 🌟 서버 연동 모듈 (Firebase) -->
+    <!-- ========================================================= -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // =======================================================
+        // 🚨 중요: 선생님 대시보드에서 복사해 온 값으로 덮어쓰세요!
+        // =======================================================
+        window.TEACHER_APP_ID = "demo-math-class"; 
+        window.firebaseConfig = {
+            apiKey: "AIzaSyDummyKeyForPreviewPurposesOnly123",
+            projectId: "demo-math-class",
+            appId: "1:123456789:web:abcde",
+            databaseURL: "https://demo-math-class-default-rtdb.firebaseio.com"
+        };
+        // =======================================================
+
+        let db = null;
+        // 가짜 키(미리보기용)인지 확인하여 데모 모드로 작동
+        let isDemoMode = window.firebaseConfig.apiKey.includes("DummyKey");
+
+        if (!isDemoMode) {
+            try {
+                const app = initializeApp(window.firebaseConfig);
+                const auth = getAuth(app);
+                db = getFirestore(app);
+                
+                // 앱 구동 시 자동 서버 연결
+                signInAnonymously(auth).catch(e => console.warn("Firebase 인증 경고:", e.message));
+            } catch (error) {
+                console.error("Firebase 초기화 에러:", error);
+                isDemoMode = true;
+            }
+        } else {
+            console.log("🛠️ 미리보기 모드로 실행 중입니다 (서버 연동 비활성화)");
+        }
+
+        // 학생 글로벌 변수
+        window.myStudentId = "";
+        window.myStudentName = "";
+
+        const toast = document.getElementById('toast');
+        window.showToast = function(message) {
+            toast.textContent = message;
+            toast.classList.remove('opacity-0');
+            setTimeout(() => toast.classList.add('opacity-0'), 3000);
+        }
+
+        // 로그인 입장 버튼 동작
+        window.enterClass = async function() {
+            const classNum = document.getElementById('student-class').value;
+            const name = document.getElementById('student-name').value;
+            
+            if (!classNum || !name.trim()) {
+                window.showToast('반과 이름을 모두 입력해주세요!');
+                return;
+            }
+
+            window.myStudentName = name;
+            window.myStudentId = `student_${Date.now()}`; 
+
+            // 화면 전환
+            document.getElementById('login-view').classList.add('hidden');
+            document.getElementById('app-view').classList.remove('hidden');
+            
+            // 첫 입장 상태 서버로 전송 (데모 모드가 아닐 때만)
+            if (!isDemoMode && db) {
+                try {
+                    const ref = doc(db, 'artifacts', window.TEACHER_APP_ID, 'public', 'data', 'class_activity', window.myStudentId);
+                    await setDoc(ref, {
+                        classNum: classNum,
+                        name: window.myStudentName,
+                        date: new Date().toISOString().split('T')[0],
+                        status: '진행 중 🏃 (1/11쪽)',
+                        currentAnswer: '',
+                        timestamp: Date.now()
+                    });
+                } catch(e) { console.warn("서버 전송 오류:", e.message); }
+            }
+        };
+
+        // 데이터 동기화 전용 함수 (기존 자바스크립트에서 호출됨)
+        window.syncProgressToServer = async function(statusText, answerText = '') {
+            if(!window.myStudentId || isDemoMode || !db) return;
+            try {
+                const ref = doc(db, 'artifacts', window.TEACHER_APP_ID, 'public', 'data', 'class_activity', window.myStudentId);
+                await setDoc(ref, {
+                    status: statusText,
+                    currentAnswer: answerText,
+                    timestamp: Date.now()
+                }, { merge: true });
+            } catch(e) {}
+        };
+    </script>
+
+    <!-- ========================================================= -->
+    <!-- 🌟 기존 게임 및 인터페이스 스크립트 (수정됨) -->
+    <!-- ========================================================= -->
     <script>
         let currentPage = 1;
         const totalPages = 11; 
@@ -498,6 +622,10 @@
             if (currentPage < totalPages) {
                 currentPage++;
                 updateUI();
+                // 🌟 서버 연동: 페이지 이동 알림
+                if(window.syncProgressToServer) {
+                    window.syncProgressToServer(`진행 중 🏃 (${currentPage}/11쪽)`, '문제 푸는 중...');
+                }
             }
         }
 
@@ -505,6 +633,10 @@
             if (currentPage > 1) {
                 currentPage--;
                 updateUI();
+                // 🌟 서버 연동: 페이지 이동 알림
+                if(window.syncProgressToServer) {
+                    window.syncProgressToServer(`진행 중 🏃 (${currentPage}/11쪽)`, '문제 푸는 중...');
+                }
             }
         }
 
@@ -512,6 +644,19 @@
             const hintEl = document.getElementById(hintId);
             if(hintEl) hintEl.classList.toggle('hidden');
         }
+
+        // 실시간 타이핑 감지 (선생님 화면에 입력 중인 내용 전송)
+        let typingTimer;
+        document.addEventListener('input', (e) => {
+            if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                clearTimeout(typingTimer);
+                typingTimer = setTimeout(() => {
+                    if(window.syncProgressToServer) {
+                        window.syncProgressToServer(`입력 중 ✍️ (${currentPage}/11쪽)`, e.target.value);
+                    }
+                }, 500); // 0.5초 딜레이
+            }
+        });
 
         function setupDraggableMarker(planeId, markerId, coordId) {
             const container = document.getElementById(planeId);
@@ -578,16 +723,13 @@
             msg.textContent = ""; 
             msg.className = "mt-4 font-bold text-emerald-600 h-6";
             
-            // 한붓그리기 모양 설정 (지붕 + 사각형 + 대각선X = 한붓그리기는 안되지만 주어진 이미지에 맞춤)
-            // 상단 꼭짓점 1개, 중간 2개, 하단 2개
             points = [
-                {x: 150, y: 50},  // 0: 상단 중앙
-                {x: 70,  y: 130}, // 1: 중간 왼쪽
-                {x: 230, y: 130}, // 2: 중간 오른쪽
-                {x: 70,  y: 250}, // 3: 하단 왼쪽
-                {x: 230, y: 250}  // 4: 하단 오른쪽
+                {x: 150, y: 50},  
+                {x: 70,  y: 130}, 
+                {x: 230, y: 130}, 
+                {x: 70,  y: 250}, 
+                {x: 230, y: 250}  
             ];
-            // 이미지 기준 테두리만 연결 (6개 간선)
             edges = [
                 [0,1], [0,2], [1,2], [1,3], [2,4], [3,4]
             ];
@@ -604,7 +746,6 @@
             ctx.clearRect(0,0, canvas.width, canvas.height);
             ctx.lineWidth = 4;
             ctx.lineCap = 'round';
-            // 배경 선
             edges.forEach(edge => {
                 ctx.strokeStyle = '#e2e8f0';
                 ctx.beginPath();
@@ -612,7 +753,6 @@
                 ctx.lineTo(points[edge[1]].x, points[edge[1]].y);
                 ctx.stroke();
             });
-            // 그려진 선
             drawnEdges.forEach(edge => {
                 ctx.strokeStyle = '#3b82f6';
                 ctx.beginPath();
@@ -620,7 +760,6 @@
                 ctx.lineTo(points[edge[1]].x, points[edge[1]].y);
                 ctx.stroke();
             });
-            // 점 표시
             points.forEach((p, i) => {
                 ctx.fillStyle = (currentPath.length > 0 && currentPath[currentPath.length-1] === i) ? '#f59e0b' : '#1e293b';
                 ctx.beginPath();
@@ -660,6 +799,8 @@
                             currentPath.push(clickedNode);
                             if(drawnEdges.length === edges.length) {
                                 document.getElementById('game-msg').textContent = "성공! 🎉 모든 선을 지났어요!";
+                                // 🌟 미니게임 성공 연동
+                                if(window.syncProgressToServer) window.syncProgressToServer(`진행 중 🏃 (${currentPage}/11쪽)`, '한붓그리기 성공!');
                             }
                         }
                     }
@@ -726,7 +867,6 @@
                 el.dataset.id = item.id;
                 el.dataset.pair = item.pair;
                 
-                // 랜덤 초기 위치 설정
                 const randomX = Math.floor(Math.random() * (container.clientWidth - 160));
                 const randomY = Math.floor(Math.random() * (container.clientHeight - 80));
                 
@@ -803,7 +943,6 @@
         function isOverlapping(el1, el2) {
             const rect1 = el1.getBoundingClientRect();
             const rect2 = el2.getBoundingClientRect();
-            // 살짝 여유를 두어 그룹화 판단
             return !(rect1.right < rect2.left - 10 || 
                      rect1.left > rect2.right + 10 || 
                      rect1.bottom < rect2.top - 10 || 
@@ -834,7 +973,6 @@
             groups.forEach(group => {
                 if(group.length > 1) { 
                     const pairValue = group[0].dataset.pair;
-                    // 해당 pair가 가져야 할 전체 아이템 개수 계산
                     const targetCount = dragData[page].filter(d => d.pair === pairValue).length;
                     
                     const isAllSamePair = group.every(c => c.dataset.pair === pairValue);
@@ -847,7 +985,6 @@
                         });
                         madeCorrection = true;
                     } else {
-                        // 개수가 부족하거나 잘못 섞였을 때 에러 표시
                         group.forEach(c => {
                             c.classList.remove('error');
                             void c.offsetWidth; 
@@ -863,6 +1000,8 @@
             if(remaining === 0) {
                 msg.textContent = "정답입니다! 완벽해요 🎉";
                 msg.className = "mt-3 font-bold h-5 text-sm text-emerald-600";
+                // 🌟 서버 연동
+                if(window.syncProgressToServer) window.syncProgressToServer(`진행 중 🏃 (${currentPage}/11쪽)`, '개념 짝맞추기 성공!');
             } else if (hasError) {
                 msg.textContent = "잘못 묶이거나 개수가 부족한 카드가 있어요!";
                 msg.className = "mt-3 font-bold h-5 text-sm text-rose-500";
@@ -882,11 +1021,10 @@
             const h = canvas.height;
             const cx = w / 2;
             const cy = h / 2;
-            const scale = 30; // 1단위 크기
+            const scale = 30;
 
             ctx.clearRect(0, 0, w, h);
 
-            // 모눈종이
             ctx.strokeStyle = '#f1f5f9';
             ctx.lineWidth = 1;
             for(let i=0; i<=w; i+=scale) {
@@ -894,21 +1032,18 @@
                 ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke();
             }
 
-            // 축
             ctx.strokeStyle = '#94a3b8';
             ctx.lineWidth = 2;
             ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(w, cy); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, h); ctx.stroke();
 
-            // y = -3x - 2 그래프
             ctx.strokeStyle = '#3b82f6';
             ctx.lineWidth = 3;
             ctx.beginPath();
-            ctx.moveTo(0, cy - (3 * (w/2/scale) - 2) * scale); // 화면 왼쪽 끝
-            ctx.lineTo(w, cy - (-3 * (w/2/scale) - 2) * scale); // 화면 오른쪽 끝
+            ctx.moveTo(0, cy - (3 * (w/2/scale) - 2) * scale); 
+            ctx.lineTo(w, cy - (-3 * (w/2/scale) - 2) * scale); 
             ctx.stroke();
 
-            // 점 표시 (-1, 1), (0, -2)
             const pts = [[-1, 1], [0, -2]];
             ctx.fillStyle = '#ef4444';
             pts.forEach(p => {
@@ -917,7 +1052,6 @@
                 ctx.fill();
             });
 
-            // 라벨
             ctx.fillStyle = '#475569';
             ctx.font = '12px Inter';
             ctx.fillText('(-1, 1)', cx - 1*scale - 40, cy - 1*scale - 10);
@@ -962,13 +1096,13 @@
             } 
             else if (currentPage === 8) {
                 let a1 = norm(document.getElementById('ans-8-1').value);
-                let ok1 = (a1 === '4' || a1 === '-4'); // 2 - (-2) = 4
+                let ok1 = (a1 === '4' || a1 === '-4'); 
                 
                 let a2 = norm(document.getElementById('ans-8-2').value);
-                let ok2 = (a2 === '8' || a2 === '-8'); // 5 - (-3) = 8
+                let ok2 = (a2 === '8' || a2 === '-8'); 
                 
                 let a3 = norm(document.getElementById('ans-8-3').value);
-                let ok3 = (a3 === '2'); // 8 / 4 = 2
+                let ok3 = (a3 === '2'); 
                 
                 let a4 = norm(document.getElementById('ans-8-4').value);
                 let ok4 = (a4 === '2x+1' || a4 === 'y=2x+1');
@@ -1000,6 +1134,8 @@
                 if(allCorrect) {
                     msgEl.textContent = "정답입니다! 훌륭해요 🎉";
                     msgEl.className = "mt-3 text-sm font-bold h-5 text-center text-emerald-600";
+                    // 🌟 서버 연동
+                    if(window.syncProgressToServer) window.syncProgressToServer(`진행 중 🏃 (${currentPage}/11쪽)`, '정답 확인 성공!');
                 } else {
                     msgEl.textContent = "틀린 부분이 있어요. 다시 확인해 보세요 🤔";
                     msgEl.className = "mt-3 text-sm font-bold h-5 text-center text-rose-500";
@@ -1012,12 +1148,13 @@
             document.getElementById('btn-prev').classList.add('hidden');
             document.getElementById('final-msg').classList.remove('hidden');
             
-            // 제출 데이터 콘솔 출력 (추후 서버 연동용)
-            console.log("제출 완료!", {
-                moodFeedback: document.getElementById('mood-feedback').value,
-                finalCoord: document.getElementById('eval-coord').textContent,
-                finalFeedback: document.getElementById('final-feedback').value
-            });
+            const feedbackText = document.getElementById('final-feedback').value;
+            const moodText = document.getElementById('mood-feedback').value;
+            
+            // 🌟 서버 연동 (최종 상태 전송)
+            if(window.syncProgressToServer) {
+                window.syncProgressToServer('제출 완료 🎉', `[최종소감] ${feedbackText} / [기분] ${moodText}`);
+            }
         }
 
         window.onload = function() {
@@ -1028,3 +1165,10 @@
     </script>
 </body>
 </html>
+```
+
+### ✅ 마무리 확인 사항
+1. 파일 안쪽의 **`<script type="module">`** 태그 바로 아래에 있는 **`TEACHER_APP_ID`**와 **`firebaseConfig`** 부분을 교사용 대시보드 우측 상단에서 복사한 설정으로 똑같이 **덮어쓰기** 해주세요.
+2. 기존처럼 이 파일을 깃허브에 올리고(배포하고), 학생들에게 주소를 알려주면 끝입니다!
+
+학생들이 문제를 풀거나 글자를 입력하면 선생님 대시보드 화면에 `입력 중 ✍️ (5/11쪽)`과 같이 지금 학생이 어느 페이지를 풀고 있는지, 어떤 답을 적고 있는지가 실시간으로 보일 것입니다!
