@@ -477,92 +477,98 @@
     <script type="module">
     // Firebase 라이브러리 불러오기 (import)
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, doc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    /* =======================================================
-       📍 1. App ID 설정 위치 
-       import 바로 아래, 다른 함수들이 시작되기 전(전역 공간)에 넣습니다.
-       ======================================================= */
     window.TEACHER_APP_ID = "demo-math-class";
     window.MISSION_COLLECTION = "mission_1785982890868";
     
-    let studentId = ""; // 학생 고유 ID를 저장할 변수
+    let studentId = ""; 
 
-    // Firebase 초기화 코드 (기존에 작성하신 코드)
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const auth = getAuth(app);
-
-    
-    /* =======================================================
-       📍 2. 입장하기(데이터 생성) 위치
-       학생이 반/이름을 입력하고 '시작' 버튼을 눌렀을 때 실행되는 함수 안쪽입니다.
-       ======================================================= */
-    window.enterClass = async function() {
-    const sClass = document.getElementById('student-class').value;
-    const sName = document.getElementById('student-name').value;
-    
-    // 1. 입력 확인
-    if(!sClass || !sName) {
-        window.showToast("반과 이름을 모두 입력해주세요!");
-        return;
+    // [에러 방지] firebaseConfig가 정의되지 않아 모듈 실행이 멈추는 것을 방지
+    let app, db, auth;
+    try {
+        if (typeof firebaseConfig !== 'undefined') {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+        } else {
+            console.warn("Firebase 설정(firebaseConfig)이 없어서 로컬 모드로 동작합니다.");
+        }
+    } catch(e) {
+        console.error("Firebase 초기화 에러:", e);
     }
 
-    // 🌟 [핵심 수정 포인트] DB 연결을 기다리지 않고 화면부터 즉시 넘깁니다!
-    document.getElementById('login-view').classList.add('hidden');
-    document.getElementById('app-view').classList.remove('hidden');
-    window.updateUI();
+    // 전역 함수로 토스트 알림 기능 추가 (누락되었던 부분)
+    window.showToast = function(message) {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.classList.remove('opacity-0', 'pointer-events-none');
+        toast.classList.add('opacity-100');
+        
+        setTimeout(() => {
+            toast.classList.remove('opacity-100');
+            toast.classList.add('opacity-0', 'pointer-events-none');
+        }, 3000);
+    };
 
-    // 2. 뒤에서 조용히 DB 고유 ID 생성 및 초기 데이터 저장 진행
-    studentId = `${sClass}반_${sName}_${Date.now().toString().slice(-4)}`;
+    window.enterClass = async function() {
+        const sClass = document.getElementById('student-class').value;
+        const sName = document.getElementById('student-name').value;
+        
+        // 1. 입력 확인
+        if(!sClass || !sName) {
+            window.showToast("반과 이름을 모두 입력해주세요!");
+            return;
+        }
 
-    if(auth && db) {
-        try {
-            const initialToken = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
-            if (initialToken) await signInWithCustomToken(auth, initialToken);
-            else await signInAnonymously(auth);
+        // 🌟 [핵심 수정 포인트] DB 연결을 기다리지 않고 화면부터 즉시 넘깁니다!
+        document.getElementById('login-view').classList.add('hidden');
+        document.getElementById('app-view').classList.remove('hidden');
+        window.updateUI();
 
-            const docRef = doc(db, 'artifacts', window.TEACHER_APP_ID, 'public', 'data', window.MISSION_COLLECTION, studentId);
-            await setDoc(docRef, {
-                class: sClass,
-                name: sName,
-                progress: 0,
-                lastActive: new Date().toLocaleTimeString('ko-KR', {hour: '2-digit', minute:'2-digit'})
-            });
-        } catch(e) {
-            console.error("DB 저장 에러:", e);
+        // 2. 뒤에서 조용히 DB 고유 ID 생성 및 초기 데이터 저장 진행
+        studentId = `${sClass}반_${sName}_${Date.now().toString().slice(-4)}`;
+
+        // auth와 db가 정상적으로 초기화 되었을 때만 실행
+        if(auth && db) {
+            try {
+                const initialToken = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
+                if (initialToken) await signInWithCustomToken(auth, initialToken);
+                else await signInAnonymously(auth);
+
+                const docRef = doc(db, 'artifacts', window.TEACHER_APP_ID, 'public', 'data', window.MISSION_COLLECTION, studentId);
+                await setDoc(docRef, {
+                    class: sClass,
+                    name: sName,
+                    progress: 0,
+                    lastActive: new Date().toLocaleTimeString('ko-KR', {hour: '2-digit', minute:'2-digit'})
+                });
+            } catch(e) {
+                console.error("DB 저장 에러:", e);
+            }
         }
     }
-}
 
-
-
-    /* =======================================================
-       📍 3. 진행도 업데이트 위치
-       학생이 '다음' 버튼을 누르거나, 특정 문제를 맞췄을 때 실행되는 함수 안쪽입니다.
-       ======================================================= */
     window.nextPage = async function() {
         // ... 다음 페이지로 넘어가는 기존 코드 ...
         // let currentProgress = (현재페이지 / 전체페이지) * 100;
+        if (!db) return; // DB가 없으면(로컬모드) 업데이트 무시
 
         try {
-            // 3-1. 입장할 때 썼던 경로와 완벽히 동일한 경로를 사용합니다.
             const docRef = doc(db, 'artifacts', window.TEACHER_APP_ID, 'public', 'data', window.MISSION_COLLECTION, studentId);
-            
-            // 3-2. 변경된 진행률(progress)만 업데이트 합니다.
             await updateDoc(docRef, { 
-                progress: 50, // 계산된 진행률 변수 넣기
+                progress: 50, 
                 lastActive: new Date().toLocaleTimeString('ko-KR', {hour: '2-digit', minute:'2-digit'})
             });
         } catch(e) {
             console.error("진행률 업데이트 실패:", e);
         }
     }
-</script>
+    </script>
 
     <!-- ========================================================= -->
-    <!-- 🌟 기존 게임 및 인터페이스 스크립트 (수정됨) -->
+    <!-- 🌟 기존 게임 및 인터페이스 스크립트 -->
     <!-- ========================================================= -->
     <script>
         let currentPage = 1;
@@ -614,7 +620,10 @@
             if (currentPage < totalPages) {
                 currentPage++;
                 updateUI();
-                // 🌟 서버 연동: 페이지 이동 알림
+                
+                // 모듈 안의 글로벌 넥스트 페이지 함수 호출 (진행률 업데이트용)
+                if(typeof window.nextPage === 'function') window.nextPage();
+                
                 if(window.syncProgressToServer) {
                     window.syncProgressToServer(`진행 중 🏃 (${currentPage}/11쪽)`, '문제 푸는 중...');
                 }
@@ -625,7 +634,6 @@
             if (currentPage > 1) {
                 currentPage--;
                 updateUI();
-                // 🌟 서버 연동: 페이지 이동 알림
                 if(window.syncProgressToServer) {
                     window.syncProgressToServer(`진행 중 🏃 (${currentPage}/11쪽)`, '문제 푸는 중...');
                 }
@@ -637,7 +645,6 @@
             if(hintEl) hintEl.classList.toggle('hidden');
         }
 
-        // 실시간 타이핑 감지 (선생님 화면에 입력 중인 내용 전송)
         let typingTimer;
         document.addEventListener('input', (e) => {
             if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
@@ -646,7 +653,7 @@
                     if(window.syncProgressToServer) {
                         window.syncProgressToServer(`입력 중 ✍️ (${currentPage}/11쪽)`, e.target.value);
                     }
-                }, 500); // 0.5초 딜레이
+                }, 500); 
             }
         });
 
@@ -791,7 +798,6 @@
                             currentPath.push(clickedNode);
                             if(drawnEdges.length === edges.length) {
                                 document.getElementById('game-msg').textContent = "성공! 🎉 모든 선을 지났어요!";
-                                // 🌟 미니게임 성공 연동
                                 if(window.syncProgressToServer) window.syncProgressToServer(`진행 중 🏃 (${currentPage}/11쪽)`, '한붓그리기 성공!');
                             }
                         }
@@ -992,7 +998,6 @@
             if(remaining === 0) {
                 msg.textContent = "정답입니다! 완벽해요 🎉";
                 msg.className = "mt-3 font-bold h-5 text-sm text-emerald-600";
-                // 🌟 서버 연동
                 if(window.syncProgressToServer) window.syncProgressToServer(`진행 중 🏃 (${currentPage}/11쪽)`, '개념 짝맞추기 성공!');
             } else if (hasError) {
                 msg.textContent = "잘못 묶이거나 개수가 부족한 카드가 있어요!";
@@ -1126,7 +1131,6 @@
                 if(allCorrect) {
                     msgEl.textContent = "정답입니다! 훌륭해요 🎉";
                     msgEl.className = "mt-3 text-sm font-bold h-5 text-center text-emerald-600";
-                    // 🌟 서버 연동
                     if(window.syncProgressToServer) window.syncProgressToServer(`진행 중 🏃 (${currentPage}/11쪽)`, '정답 확인 성공!');
                 } else {
                     msgEl.textContent = "틀린 부분이 있어요. 다시 확인해 보세요 🤔";
@@ -1143,7 +1147,6 @@
             const feedbackText = document.getElementById('final-feedback').value;
             const moodText = document.getElementById('mood-feedback').value;
             
-            // 🌟 서버 연동 (최종 상태 전송)
             if(window.syncProgressToServer) {
                 window.syncProgressToServer('제출 완료 🎉', `[최종소감] ${feedbackText} / [기분] ${moodText}`);
             }
