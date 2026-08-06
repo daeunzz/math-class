@@ -475,102 +475,82 @@
     <!-- 🌟 서버 연동 모듈 (Firebase) -->
     <!-- ========================================================= -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    // Firebase 라이브러리 불러오기 (import)
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // =======================================================
-        // 🚨 중요: 선생님 대시보드에서 복사해 온 값으로 덮어쓰세요!
-        // =======================================================
-        window.TEACHER_APP_ID = "demo-math-class";
-        window.MISSION_COLLECTION = "mission_1785982890868";
-        window.firebaseConfig = {
-            apiKey: "AIzaSyDummyKeyForPreviewPurposesOnly123",
-            projectId: "demo-math-class",
-            appId: "1:123456789:web:abcde",
-            databaseURL: "https://demo-math-class-default-rtdb.firebaseio.com"
-        };
-        // =======================================================
+    /* =======================================================
+       📍 1. App ID 설정 위치 
+       import 바로 아래, 다른 함수들이 시작되기 전(전역 공간)에 넣습니다.
+       ======================================================= */
+    window.TEACHER_APP_ID = "demo-math-class";
+    window.MISSION_COLLECTION = "mission_1785982890868";
+    
+    let studentId = ""; // 학생 고유 ID를 저장할 변수
 
-        let db = null;
-        // 가짜 키(미리보기용)인지 확인하여 데모 모드로 작동
-        let isDemoMode = window.firebaseConfig.apiKey.includes("DummyKey");
+    // Firebase 초기화 코드 (기존에 작성하신 코드)
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
 
-        if (!isDemoMode) {
-            try {
-                const app = initializeApp(window.firebaseConfig);
-                const auth = getAuth(app);
-                db = getFirestore(app);
-                
-                // 앱 구동 시 자동 서버 연결
-                signInAnonymously(auth).catch(e => console.warn("Firebase 인증 경고:", e.message));
-            } catch (error) {
-                console.error("Firebase 초기화 에러:", error);
-                isDemoMode = true;
-            }
-        } else {
-            console.log("🛠️ 미리보기 모드로 실행 중입니다 (서버 연동 비활성화)");
-        }
+    
+    /* =======================================================
+       📍 2. 입장하기(데이터 생성) 위치
+       학생이 반/이름을 입력하고 '시작' 버튼을 눌렀을 때 실행되는 함수 안쪽입니다.
+       ======================================================= */
+    window.enterClass = async function() {
+        const sClass = document.getElementById('student-class').value;
+        const sName = document.getElementById('student-name').value;
+        
+        // 학생 고유 ID 생성 (예: 3반_홍길동_1234)
+        studentId = `${sClass}반_${sName}_${Date.now().toString().slice(-4)}`;
 
-        // 학생 글로벌 변수
-        window.myStudentId = "";
-        window.myStudentName = "";
+        try {
+            // 2-1. 반드시 먼저 익명 로그인을 수행해야 쓰기 권한이 생깁니다.
+            await signInAnonymously(auth);
 
-        const toast = document.getElementById('toast');
-        window.showToast = function(message) {
-            toast.textContent = message;
-            toast.classList.remove('opacity-0');
-            setTimeout(() => toast.classList.add('opacity-0'), 3000);
-        }
-
-        // 로그인 입장 버튼 동작
-        window.enterClass = async function() {
-            const classNum = document.getElementById('student-class').value;
-            const name = document.getElementById('student-name').value;
+            // 2-2. 교사 대시보드와 완벽히 동일한 DB 경로 지정
+            const docRef = doc(db, 'artifacts', window.TEACHER_APP_ID, 'public', 'data', window.MISSION_COLLECTION, studentId);
             
-            if (!classNum || !name.trim()) {
-                window.showToast('반과 이름을 모두 입력해주세요!');
-                return;
-            }
-
-            window.myStudentName = name;
-            window.myStudentId = `student_${Date.now()}`; 
-
-            // 화면 전환
-            document.getElementById('login-view').classList.add('hidden');
-            document.getElementById('app-view').classList.remove('hidden');
+            // 2-3. 초기 데이터 저장
+            await setDoc(docRef, {
+                class: sClass,
+                name: sName,
+                progress: 0,
+                lastActive: new Date().toLocaleTimeString('ko-KR', {hour: '2-digit', minute:'2-digit'})
+            });
             
-            // 첫 입장 상태 서버로 전송 (데모 모드가 아닐 때만)
-            if (!isDemoMode && db) {
-                try {
-                    const missionId = window.MISSION_COLLECTION || 'class_activity';
-                    const ref = doc(db, 'artifacts', window.TEACHER_APP_ID, 'public', 'data', missionId, window.myStudentId);
-                    await setDoc(ref, {
-                        classNum: classNum,
-                        name: window.myStudentName,
-                        date: new Date().toISOString().split('T')[0],
-                        status: '진행 중 🏃 (1/11쪽)',
-                        currentAnswer: '',
-                        timestamp: Date.now()
-                    });
-                } catch(e) { console.warn("서버 전송 오류:", e.message); }
-            }
-        };
+            // ... 이후 화면을 넘기는 기존 코드 실행 ...
+            
+        } catch(e) {
+            console.error("데이터 저장 실패:", e);
+        }
+    }
 
-        // 데이터 동기화 전용 함수 (기존 자바스크립트에서 호출됨)
-        window.syncProgressToServer = async function(statusText, answerText = '') {
-            if(!window.myStudentId || isDemoMode || !db) return;
-            try {
-                const missionId = window.MISSION_COLLECTION || 'class_activity';
-                const ref = doc(db, 'artifacts', window.TEACHER_APP_ID, 'public', 'data', missionId, window.myStudentId);
-                await setDoc(ref, {
-                    status: statusText,
-                    currentAnswer: answerText,
-                    timestamp: Date.now()
-                }, { merge: true });
-            } catch(e) {}
-        };
-    </script>
+
+    /* =======================================================
+       📍 3. 진행도 업데이트 위치
+       학생이 '다음' 버튼을 누르거나, 특정 문제를 맞췄을 때 실행되는 함수 안쪽입니다.
+       ======================================================= */
+    window.nextPage = async function() {
+        // ... 다음 페이지로 넘어가는 기존 코드 ...
+        // let currentProgress = (현재페이지 / 전체페이지) * 100;
+
+        try {
+            // 3-1. 입장할 때 썼던 경로와 완벽히 동일한 경로를 사용합니다.
+            const docRef = doc(db, 'artifacts', window.TEACHER_APP_ID, 'public', 'data', window.MISSION_COLLECTION, studentId);
+            
+            // 3-2. 변경된 진행률(progress)만 업데이트 합니다.
+            await updateDoc(docRef, { 
+                progress: 50, // 계산된 진행률 변수 넣기
+                lastActive: new Date().toLocaleTimeString('ko-KR', {hour: '2-digit', minute:'2-digit'})
+            });
+        } catch(e) {
+            console.error("진행률 업데이트 실패:", e);
+        }
+    }
+</script>
 
     <!-- ========================================================= -->
     <!-- 🌟 기존 게임 및 인터페이스 스크립트 (수정됨) -->
